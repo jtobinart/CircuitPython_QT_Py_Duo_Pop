@@ -1,6 +1,7 @@
 # jisforjt_QT_Py_Duo_Pop.py
 # Version: 1.0
 # Author(s): James Tobin
+# License: MIT
 
 ######################################################
 #   MIT License
@@ -27,7 +28,20 @@ OR OTHER DEALINGS IN THE SOFTWARE.
 #   Version Notes
 ######################################################
 '''
+v1.0
+    Possible Impovements:
+        - Speaker volume is low. May need to be swapped out with a new one.
+        - Power consumption:
+            - Should there be a low power mode?
+            - Should there be a power switch?
 
+    Game Play:
+        - Ask your question and have all your contestants buzz in.
+        - The neopixel will change to the buzzer color of the first contestant to buzz in.
+        - Once all contestants have buzzed in the NeoPixel will flash through the order that contestants buzzed in.
+        - Press and hold the button until the the NeoPixel turns white to reset for the next round (about 1 second).
+        - Press and hold the button until the red LED next to the button goes off and you hear a low tone
+          to turn the speaker on and off (about 4 seconds).
 '''
 
 ######################################################
@@ -46,7 +60,7 @@ import pwmio
 #   Global Variables
 ######################################################
 game_round = []
-speaker_enabled = False
+speaker_enabled = True
 
 # The first 19 buzzer pulses are consistant each time you press the buzzers' buttons
 BUZZERS = [ [150,  50, 100,  50, 100, 100,  50,  50, 100,  50],    #100,  50, 100, 100,  50,  50, 100, 50, 100],     # Red
@@ -67,7 +81,8 @@ button = digitalio.DigitalInOut(board.D6)
 button.switch_to_input(pull=digitalio.Pull.UP)
 pixel = neopixel.NeoPixel(board.NEOPIXEL, 1)
 led = pwmio.PWMOut(board.P1, frequency=5000, duty_cycle=0)
-speaker = pwmio.PWMOut(board.SPEAKER, duty_cycle=0, frequency=440, variable_frequency=True)
+speaker = pwmio.PWMOut(board.P4, duty_cycle=0, frequency=440, variable_frequency=True)
+
 
 
 ######################################################
@@ -75,16 +90,22 @@ speaker = pwmio.PWMOut(board.SPEAKER, duty_cycle=0, frequency=440, variable_freq
 ######################################################
 def place(buzzer):
     '''
-    buzzer ()
+    Records the order that the buzzers buzzed in
+
+    buzzer (list) =  RGB color of the buzzer
+
+    examples:
+    place(RED)
+    place((255, 0, 0))
     '''
     global game_round
-    for i in game_round:
+    for i in game_round:    # Check if the buzzer has been recorded
         if buzzer == i:
             return
-    game_round.append(buzzer)
+    game_round.append(buzzer)   # Add buzzer color to list
     play_tone(1047,1)
     blink(1, 0.2)
-    if len(game_round) == 1:
+    if len(game_round) == 1:    # Set the NeoPixel to the first buzzer to buzz in
         pixel.fill(buzzer)
 
 def play_tone(tone, duration):
@@ -112,9 +133,9 @@ def play_tone(tone, duration):
     global speaker_enabled
     if speaker_enabled == True:
         speaker.frequency = tone
-        speaker.duty_cycle = 65535 // 2  # On 50%
-        time.sleep(duration)  # On for 1/4 second
-        speaker.duty_cycle = 0  # Off
+        speaker.duty_cycle = 32767  # Turn on at half of full power (65535)
+        time.sleep(duration)        # Wait while tone plays for duration number os seconds 
+        speaker.duty_cycle = 0      # Turn off
 
 def blink(brightness, duration):
     '''
@@ -142,9 +163,9 @@ def glow(number_cylces):
     for k in range(number_cylces):
         for i in range(100):
             if i < 50:
-                led.duty_cycle = int(i * 2 * 65535 / 100)  # Up
+                led.duty_cycle = int(i * 2 * 65535 / 100)   # Fade up
             else:
-                led.duty_cycle = 65535 - int((i - 50) * 2 * 65535 / 100)  # Down
+                led.duty_cycle = 65535 - int((i - 50) * 2 * 65535 / 100)    # Fade down
             time.sleep(0.01)
 
 
@@ -159,7 +180,7 @@ while True:
         led.duty_cycle = 65535
         game_round = []
         pixel.fill(WHITE)
-        pulsein.clear()         # Clear any unread packets
+        pulsein.clear()         # Clear any unread IR packets
         play_tone(494,1)
         # Hold down the button for 4 seconds to enable/disable speaker
         if button.value == False:
@@ -169,6 +190,7 @@ while True:
                 speaker_enabled = not speaker_enabled
                 print(speaker_enabled)
                 play_tone(262,1)
+                led.duty_cycle = 0
                 time.sleep(1)
     led.duty_cycle = 0
     if len(game_round) < 4:
@@ -185,7 +207,7 @@ while True:
                             normalized.append(100)
                         elif 1300 < i < 1700:
                             normalized.append(150)
-                    if normalized[0] == 150:    #Confirm that it is a Buzzer
+                    if normalized[0] == 150:            # Confirm that it is a Buzzer
                         if normalized[0:10] == BUZZERS[0]:
                             #print("RED")
                             place(RED)
@@ -203,14 +225,14 @@ while True:
         print(game_round)
         pixel.fill(OFF)
         play_tone(349,2)
+        # Loop through the order the buzzers buzzed in
         while button.value == True:
             for i in game_round:
                 pixel.fill(i)
                 blink(1, 0.5)
                 time.sleep(0.5)
-                if button.value == False:       # Quick check so that the user does not have to whate for all the colors to cycle
+                if button.value == False:       # Quick check so that the user does not have to wait for all the colors to cycle
                     break
             pixel.fill(OFF)
-            #blink(1, 0.5)
             time.sleep(1)
 
